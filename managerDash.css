@@ -1,0 +1,217 @@
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial, Helvetica, sans-serif;
+}
+
+body{
+background:#f4ece6;
+height:100vh;
+display:flex;
+flex-direction:column;
+}
+
+.header{
+background:linear-gradient(180deg,#c9eeee,#b9e5e5);
+padding:15px 20px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+font-size:20px;
+font-weight:bold;
+color:#1c7f8c;
+}
+
+.header button{
+padding:8px 16px;
+border:none;
+border-radius:20px;
+background:#2fb4c1;
+color:white;
+font-weight:bold;
+cursor:pointer;
+}
+
+.header-buttons{
+display:flex;
+gap:10px;
+}
+
+.header button:hover{
+background:#239aa6;
+}
+
+.main {
+    flex: 1; /* takes available space */
+    display: flex;
+    min-height: 400px;
+}
+
+#map{
+flex:2;
+}
+
+.sidebar{
+flex:1;
+background:white;
+padding:20px;
+box-shadow:-3px 0 10px rgba(0,0,0,0.1);
+overflow:auto;
+}
+
+.board{
+background:linear-gradient(180deg,#c9eeee,#b9e5e5);
+padding:15px;
+border-radius:8px;
+margin-bottom:20px;
+color:#1c7f8c;
+}
+
+.board p{
+margin-top:6px;
+}
+
+.sidebar input{
+width:100%;
+padding:10px;
+margin-bottom:10px;
+border:none;
+border-radius:20px;
+background:#f5f5f5;
+outline:none;
+}
+
+.sidebar button{
+    padding:10px;
+    border:none;
+    border-radius:20px;
+    background:#2fb4c1;
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.sidebar button:hover{
+background:#239aa6;
+}
+
+.floorRoom{
+margin-bottom:8px;
+}
+
+.mapHint{
+font-size:13px;
+margin-bottom:10px;
+color:#666;
+}
+
+.hidden{
+display:none;
+}
+
+/* Floor buttons */
+#floorButtonsContainer button {
+    margin: 4px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    background-color: #2fb4c1;
+    color: white;
+    cursor: pointer;
+}
+
+#floorButtonsContainer button:hover {
+    background-color: #239aa6;
+}
+
+/* Room grid */
+.room-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr)); /* ✅ prevents overflow */
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+/* Room buttons */
+.room-btn {
+    width: 100%;              /* ✅ fill grid cell only */
+    height: 45px;             /* slightly smaller */
+    border: none;
+    border-radius: 6px;
+    background-color: #e0e0e0;
+    font-weight: bold;
+    cursor: pointer;
+
+    font-size: 11px;          /* ✅ smaller text */
+    padding: 2px;             /* ✅ reduce padding */
+    
+    overflow: hidden;         /* ✅ prevents spill */
+    text-overflow: ellipsis;  /* optional */
+}
+
+/* Optional color coding */
+.room-btn:hover {
+    background-color: #d5d5d5;
+}
+
+.logs-section {
+    background: white;
+    padding: 15px;
+    border-top: 2px solid #ddd;
+
+    min-height: 150px;   /* ✅ ensures at least 50px */
+    max-height: 250px;  /* optional: limit growth */
+    overflow-y: auto;
+}
+
+.logs-section h3 {
+    color: #1c7f8c;
+    margin-bottom: 10px;
+}
+
+.log-item {
+    padding: 6px;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+}
+
+.log-time {
+    color: gray;
+    font-size: 11px;
+}
+
+.charts-section {
+    background: white;
+    padding: 15px;
+    border-top: 2px solid #ddd;
+}
+
+.charts-section canvas {
+    width: 100% !important;
+    max-height: 300px;
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Ensure the header right section spreads buttons horizontally */
+.header-right {
+    display: flex;
+    gap: 10px; /* Space between the three buttons */
+    align-items: center;
+}
+
+/* Adjusting the table inside the "Building Info" area for devices */
+#deviceTable {
+    border-collapse: collapse;
+    font-size: 14px;
+}
+#deviceTable th, #deviceTable td {
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+}

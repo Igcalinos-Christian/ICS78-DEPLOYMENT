@@ -1,0 +1,77 @@
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial, Helvetica, sans-serif;
+}
+
+body{
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:#f4ece6;
+}
+
+/* Card */
+.card{
+    width:320px;
+    padding:40px 30px;
+    background:linear-gradient(180deg,#c9eeee,#b9e5e5);
+    border-radius:8px;
+    text-align:center;
+    box-shadow:0 4px 15px rgba(0,0,0,0.15);
+}
+
+/* Title */
+.card h2{
+    color:#1c7f8c;
+    margin-bottom:20px;
+}
+
+/* Inputs */
+.card input{
+    width:100%;
+    padding:10px;
+    margin-bottom:15px;
+    border:none;
+    border-radius:20px;
+    outline:none;
+    background:#fff;
+}
+
+/* Button */
+.card button{
+    width:100px;
+    padding:8px;
+    border:none;
+    border-radius:20px;
+    background:#2fb4c1;
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.card button:hover{
+    background:#239aa6;
+}
+
+/* Toggle links */
+.toggle{
+    margin-top:15px;
+    font-size:13px;
+}
+
+.toggle a{
+    color:#1c7f8c;
+    text-decoration:none;
+    cursor:pointer;
+}
+
+.toggle a:hover{
+    text-decoration:underline;
+}
+
+.hidden{
+    display:none;
+}
