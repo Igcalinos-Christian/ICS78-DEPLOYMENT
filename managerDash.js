@@ -96,19 +96,15 @@ function loadBuildings() {
             window.buildingMarkers = [];
 
             data.forEach(building => {
-                // 1. Try to get coordinates from either 'lat' or 'latitude'
-                // 2. Parse them immediately so we can check if they are valid numbers
                 const lat = parseFloat(building.latitude || building.lat);
                 const lng = parseFloat(building.longitude || building.lng);
 
-                // 3. Robust validation: skip if either is not a valid number
                 if (isNaN(lat) || isNaN(lng)) {
                     console.warn(`Skipping building "${building.name}" due to invalid coords:`, building);
                     return;
                 }
 
                 try {
-                    // Create marker with the parsed numbers
                     const marker = L.marker([lat, lng])
                         .addTo(map)
                         .bindPopup(`<b>${building.name}</b>`);
@@ -123,33 +119,10 @@ function loadBuildings() {
         .catch(err => console.error("Fetch error:", err));
 }
 
-// CONSOLIDATED INITIALIZATION (Replace both window.onload blocks with this)
-function initDashboard() {
-    loadBuildings();
-    loadLogs();
-    refreshAllDeviceUI();
-    loadDeviceLogs(); 
-
-    // Add event listeners safely
-    document.getElementById("addDeviceBtn")?.addEventListener("click", () => {
-        submitNewDevice('newDeviceUsername', 'newDevicePassword');
-    });
-
-    document.getElementById("logoutBtn")?.addEventListener("click", () => {
-        window.location.href = "logout.php";
-    });
-    
-    // Set up intervals
-    setInterval(loadLogs, 5000);
-    setInterval(loadDeviceLogs, 5000);
-}
-
-window.onload = initDashboard;
-
 let selectedBuildingId = null;
 
 function showBuildingInfo(building){
-    selectedBuildingId = building.id; // track selected building
+    selectedBuildingId = building.id;
 
     document.getElementById("infoName").innerText = building.name;
     document.getElementById("infoFloors").innerText = building.floors;
@@ -171,7 +144,6 @@ function showBuildingInfo(building){
         roomContainer.appendChild(grid);
     });
 
-    // Enable the header delete button
     const headerBtn = document.getElementById("deleteBuildingBtn");
     if(headerBtn) headerBtn.disabled = false;
 }
@@ -189,13 +161,11 @@ function deleteSelectedBuilding(){
     .then(data => {
         if(data.status === "success"){
             loadBuildings();
-            // Clear sidebar info
             document.getElementById("infoName").innerText = "None";
             document.getElementById("infoFloors").innerText = "0";
             document.getElementById("infoRooms").innerText = "0";
             document.getElementById("roomListContainer").innerHTML = "";
 
-            // Disable the delete button again
             const headerBtn = document.getElementById("deleteBuildingBtn");
             if(headerBtn) headerBtn.disabled = true;
 
@@ -223,7 +193,8 @@ function refreshAllDeviceUI() {
         if (tbody) {
             tbody.innerHTML = data.map(dev => `
                 <tr><td>${dev.username}</td><td style="text-align:right;">
-                <button onclick="deleteDeviceAction(${dev.id})" style="color:red; border:none; background:none; cursor:pointer;">Delete</button></td></tr>
+                <button onclick="deleteDeviceAction(${dev.id})" style="color:red; border:none; background:none; cursor:pointer;">Delete</button>
+                </td></tr>
             `).join('');
         }
     });
@@ -282,98 +253,86 @@ function revertBoard() {
     }
 }
 
-/* --- LOGS & CHARTS --- */
+/* --- LOGS (Device-only) & CHARTS --- */
 
-function loadLogs(){
-    fetch("getDeviceLogs.php").then(res => res.json()).then(data => {
-        const container = document.getElementById("logsContainer");
-        if(!container) return;
-        container.innerHTML = data.map(log => `<div class="log-item">${log.action}<br><span class="log-time">${log.created_at}</span></div>`).join('');
-    });
-}
-
-/* --- DEVICE LOG CHARTS FOR MANAGER DASH --- */
-
-window.deviceLogsBarChart = null;
-window.deviceLogsPieChart = null;
-
-// Fetch logs and update UI + charts
-function loadDeviceLogs() {
-    // Fetch raw logs for display
-    fetch("getLogs.php")
-    .then(res => res.json())
-    .then(logs => {
-        const container = document.getElementById("logsContainer");
-        if (container) {
-            container.innerHTML = logs.map(log => `
-                <div class="log-item" style="padding:5px; border-bottom:1px solid #ddd;">
-                    ${log.action} <br>
-                    <span style="font-size:0.8em; color:gray;">${log.created_at}</span>
-                </div>
-            `).join('');
-        }
-
-        // Now fetch stats for charts
-        return fetch("getLogStats.php");
-    })
-    .then(res => res.json())
-    .then(stats => {
-        // Destroy old charts if they exist
-        if (window.deviceLogsBarChart instanceof Chart) window.deviceLogsBarChart.destroy();
-        if (window.deviceLogsPieChart instanceof Chart) window.deviceLogsPieChart.destroy();
-
-        const barCtx = document.getElementById('logsBarChart').getContext('2d');
-        const pieCtx = document.getElementById('logsPieChart').getContext('2d');
-
-        // Bar chart
-        window.deviceLogsBarChart = new Chart(barCtx, {
-            type: 'bar',
-            data: {
-                labels: stats.map(s => s.action),
-                datasets: [{
-                    label: 'Count',
-                    data: stats.map(s => s.count),
-                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true, ticks: { precision:0 } } }
+// Loads ONLY device logs into the #logsContainer (uses getDeviceLogs.php)
+function loadLogs() {
+    fetch("getDeviceLogs.php")
+        .then(res => res.json())
+        .then(data => {
+            const container = document.getElementById("logsContainer");
+            if (container) {
+                container.innerHTML = data.map(log => {
+                    const action = escapeHtml(log.action || '');
+                    const time = escapeHtml(log.created_at || '');
+                    return `<div class="log-item" style="padding:5px; border-bottom:1px solid #ddd; font-size:12px;">
+                        ${action} <span style="color:gray; margin-left:8px;">${time}</span>
+                    </div>`;
+                }).join('');
             }
-        });
-
-        // Pie chart
-        window.deviceLogsPieChart = new Chart(pieCtx, {
-            type: 'pie',
-            data: {
-                labels: stats.map(s => s.action),
-                datasets: [{
-                    label: 'Count',
-                    data: stats.map(s => s.count),
-                    backgroundColor: [
-                        '#36A2EB','#FF6384','#FFCE56','#4BC0C0','#9966FF','#FF9F40','#C9CBCF'
-                    ]
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
-    })
-    .catch(err => console.error("Failed to load device logs/charts:", err));
+        })
+        .catch(err => console.error("Failed to load device logs:", err));
 }
 
-// Auto-refresh every 5 seconds
-setInterval(loadDeviceLogs, 5000);
+// Loads chart statistics (only device actions) – does NOT touch logs container
+function loadDeviceLogs() {
+    fetch("getLogStats.php")
+        .then(res => res.json())
+        .then(stats => {
+            // Destroy old charts if they exist
+            if (window.deviceLogsBarChart instanceof Chart) window.deviceLogsBarChart.destroy();
+            if (window.deviceLogsPieChart instanceof Chart) window.deviceLogsPieChart.destroy();
 
-function init() {
+            const barCtx = document.getElementById('logsBarChart').getContext('2d');
+            const pieCtx = document.getElementById('logsPieChart').getContext('2d');
+
+            // Bar chart
+            window.deviceLogsBarChart = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: stats.map(s => s.action),
+                    datasets: [{
+                        label: 'Count',
+                        data: stats.map(s => s.count),
+                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision:0 } } }
+                }
+            });
+
+            // Pie chart
+            window.deviceLogsPieChart = new Chart(pieCtx, {
+                type: 'pie',
+                data: {
+                    labels: stats.map(s => s.action),
+                    datasets: [{
+                        label: 'Count',
+                        data: stats.map(s => s.count),
+                        backgroundColor: [
+                            '#36A2EB','#FF6384','#FFCE56','#4BC0C0','#9966FF','#FF9F40','#C9CBCF'
+                        ]
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        })
+        .catch(err => console.error("Failed to load device stats:", err));
+}
+
+// Initialization
+function initDashboard() {
     loadBuildings();
-    loadLogs();
+    loadLogs();               // fills device logs container
     refreshAllDeviceUI();
-    loadDeviceLogs(); 
-    
+    loadDeviceLogs();         // loads charts only
+
     document.getElementById("addDeviceBtn")?.addEventListener("click", () => {
         submitNewDevice('newDeviceUsername', 'newDevicePassword');
     });
@@ -383,5 +342,8 @@ function init() {
     });
 }
 
-window.onload = init;
-setInterval(loadLogs, 5000);
+// Run initialization when page loads
+window.onload = initDashboard;
+
+// Auto-refresh charts every 5 seconds (does not interfere with logs container)
+setInterval(loadDeviceLogs, 5000);

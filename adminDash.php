@@ -3,7 +3,19 @@ session_start();
 include "connect.php";
 
 // Redirect if not logged in
-if(!isset($_SESSION['user_id'])){
+if (!isset($_SESSION['user_id'])) {
+    header("Location: index.php");
+    exit;
+}
+
+// Verify the logged-in user has role 'admin'
+$stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$user || $user['role'] !== 'admin') {
+    // Not an admin – destroy session and redirect to login
+    session_destroy();
     header("Location: index.php");
     exit;
 }
@@ -11,10 +23,10 @@ if(!isset($_SESSION['user_id'])){
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard</title>
-<link rel="stylesheet" href="managerDash.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="managerDash.css">
 </head>
 <body>
 
@@ -30,9 +42,8 @@ if(!isset($_SESSION['user_id'])){
     <div id="logsContainer" style="max-height:300px; overflow-y:auto; border:1px solid #ddd; padding:10px;"></div>
     <br>
     <form action="export.php" method="post">
-    <button type="submit">Get CSV</button>
+        <button type="submit">Get CSV</button>
     </form>
-
 </div>
 
 <div class="charts-section">

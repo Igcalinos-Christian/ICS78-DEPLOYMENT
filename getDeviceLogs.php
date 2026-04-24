@@ -9,12 +9,11 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 try {
+    // Query from device_logs instead of activity_logs
     $sql = "
-        SELECT activity_logs.action, activity_logs.created_at
-        FROM activity_logs
-        INNER JOIN users ON activity_logs.user_id = users.id
-        WHERE users.role = 'device'
-        ORDER BY activity_logs.created_at DESC
+        SELECT action, created_at
+        FROM device_logs
+        ORDER BY created_at DESC
         LIMIT 50
     ";
     $stmt = $pdo->prepare($sql);

@@ -10,7 +10,13 @@ if (!isset($_SESSION['user_id'])) {
 
 try {
     $sql = "
-        SELECT activity_logs.action, activity_logs.created_at
+        SELECT 
+            users.username, 
+            activity_logs.action, 
+            activity_logs.ip_address,
+            activity_logs.user_agent,
+            activity_logs.page,
+            activity_logs.created_at
         FROM activity_logs
         INNER JOIN users ON activity_logs.user_id = users.id
         ORDER BY activity_logs.created_at DESC
