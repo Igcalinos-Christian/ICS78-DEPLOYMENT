@@ -3,6 +3,15 @@ session_start();
 header('Content-Type: application/json');
 include "connect.php";
 
+// After session start and connect
+$stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$user = $stmt->fetch();
+if (!$user || !in_array($user['role'], ['manager', 'admin'])) {
+    echo json_encode(["status" => "error", "msg" => "Forbidden"]);
+    exit;
+}
+
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['status' => 'error', 'msg' => 'Unauthorized']);
     exit;

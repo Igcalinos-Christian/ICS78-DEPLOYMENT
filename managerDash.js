@@ -15,20 +15,19 @@ L.polygon([
 
 let buildings = [];
 let originalBoardHTML = "";
+let selectedBuildingId = null;
+
+// Chart instances
+window.deviceLogsBarChart = null;
+window.deviceLogsPieChart = null;
 
 /* --- BUILDING FUNCTIONS --- */
 
-// Toggle Form Visibility
 function toggleBuildingForm() {
     const form = document.getElementById("formContainer");
-    if (form) {
-        form.classList.toggle("hidden");
-    } else {
-        console.error("formContainer not found in HTML");
-    }
+    if (form) form.classList.toggle("hidden");
 }
 
-// Map click → fill coordinates
 map.on("click", function(e){
     const latInput = document.getElementById("latitude");
     const lngInput = document.getElementById("longitude");
@@ -38,7 +37,6 @@ map.on("click", function(e){
     }
 });
 
-// Generate room inputs
 document.getElementById("floorCount")?.addEventListener("change", function(){
     const roomContainer = document.getElementById("roomInputs");
     roomContainer.innerHTML = "";
@@ -50,7 +48,6 @@ document.getElementById("floorCount")?.addEventListener("change", function(){
     }
 });
 
-// Submit Building
 document.getElementById("buildingForm")?.addEventListener("submit", function(e){
     e.preventDefault();
     const name = document.getElementById("buildingName").value;
@@ -85,77 +82,31 @@ function loadBuildings() {
     fetch('getBuildings.php')
         .then(response => response.json())
         .then(data => {
-            console.log("Data received:", data);
-
             if (!Array.isArray(data)) return;
-
-            // Clear old markers
             if (window.buildingMarkers) {
                 window.buildingMarkers.forEach(m => map.removeLayer(m));
             }
             window.buildingMarkers = [];
-
             data.forEach(building => {
-                // 1. Try to get coordinates from either 'lat' or 'latitude'
-                // 2. Parse them immediately so we can check if they are valid numbers
                 const lat = parseFloat(building.latitude || building.lat);
                 const lng = parseFloat(building.longitude || building.lng);
-
-                // 3. Robust validation: skip if either is not a valid number
-                if (isNaN(lat) || isNaN(lng)) {
-                    console.warn(`Skipping building "${building.name}" due to invalid coords:`, building);
-                    return;
-                }
-
-                try {
-                    // Create marker with the parsed numbers
-                    const marker = L.marker([lat, lng])
-                        .addTo(map)
-                        .bindPopup(`<b>${building.name}</b>`);
-
-                    window.buildingMarkers.push(marker);
-                    marker.on('click', () => showBuildingInfo(building));
-                } catch (err) {
-                    console.error("Leaflet error adding marker:", err);
-                }
+                if (isNaN(lat) || isNaN(lng)) return;
+                const marker = L.marker([lat, lng])
+                    .addTo(map)
+                    .bindPopup(`<b>${building.name}</b>`);
+                window.buildingMarkers.push(marker);
+                marker.on('click', () => showBuildingInfo(building));
             });
         })
         .catch(err => console.error("Fetch error:", err));
 }
 
-// CONSOLIDATED INITIALIZATION (Replace both window.onload blocks with this)
-function initDashboard() {
-    loadBuildings();
-    loadLogs();
-    refreshAllDeviceUI();
-    loadDeviceLogs(); 
-
-    // Add event listeners safely
-    document.getElementById("addDeviceBtn")?.addEventListener("click", () => {
-        submitNewDevice('newDeviceUsername', 'newDevicePassword');
-    });
-
-    document.getElementById("logoutBtn")?.addEventListener("click", () => {
-        window.location.href = "logout.php";
-    });
-    
-    // Set up intervals
-    setInterval(loadLogs, 5000);
-    setInterval(loadDeviceLogs, 5000);
-}
-
-window.onload = initDashboard;
-
-let selectedBuildingId = null;
-
 function showBuildingInfo(building){
-    selectedBuildingId = building.id; // track selected building
-
+    selectedBuildingId = building.id;
     document.getElementById("infoName").innerText = building.name;
     document.getElementById("infoFloors").innerText = building.floors;
     const roomContainer = document.getElementById("roomListContainer");
     roomContainer.innerHTML = "";
-
     building.rooms.forEach((floorRooms, floorIndex) => {
         let floorHeader = document.createElement("h4");
         floorHeader.innerText = "Floor " + (floorIndex + 1);
@@ -170,16 +121,13 @@ function showBuildingInfo(building){
         });
         roomContainer.appendChild(grid);
     });
-
-    // Enable the header delete button
     const headerBtn = document.getElementById("deleteBuildingBtn");
     if(headerBtn) headerBtn.disabled = false;
 }
 
 function deleteSelectedBuilding(){
     if(!selectedBuildingId) return;
-    if(!confirm("Are you sure you want to delete this building? This will remove all floors and rooms.")) return;
-
+    if(!confirm("Are you sure you want to delete this building?")) return;
     fetch("deleteBuilding.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -189,16 +137,11 @@ function deleteSelectedBuilding(){
     .then(data => {
         if(data.status === "success"){
             loadBuildings();
-            // Clear sidebar info
             document.getElementById("infoName").innerText = "None";
             document.getElementById("infoFloors").innerText = "0";
-            document.getElementById("infoRooms").innerText = "0";
             document.getElementById("roomListContainer").innerHTML = "";
-
-            // Disable the delete button again
             const headerBtn = document.getElementById("deleteBuildingBtn");
             if(headerBtn) headerBtn.disabled = true;
-
             selectedBuildingId = null;
         } else {
             alert("Error: " + data.msg);
@@ -223,7 +166,8 @@ function refreshAllDeviceUI() {
         if (tbody) {
             tbody.innerHTML = data.map(dev => `
                 <tr><td>${dev.username}</td><td style="text-align:right;">
-                <button onclick="deleteDeviceAction(${dev.id})" style="color:red; border:none; background:none; cursor:pointer;">Delete</button></td></tr>
+                <button onclick="deleteDeviceAction(${dev.id})" style="color:red; border:none; background:none; cursor:pointer;">Delete</button>
+                </td></tr>
             `).join('');
         }
     });
@@ -245,13 +189,14 @@ function submitNewDevice(userFieldId, passFieldId) {
 }
 
 function deleteDeviceAction(device_id) {
-    if(!confirm("Delete?")) return;
+    if(!confirm("Delete this device?")) return;
     fetch("deleteDevice.php", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({device_id})
     }).then(res => res.json()).then(data => {
         if (data.status === "success") refreshAllDeviceUI();
+        else alert(data.msg);
     });
 }
 
@@ -266,9 +211,9 @@ function showDeviceManager() {
                     <tbody id="deviceTableBody"></tbody>
                 </table>
             </div>
-            <input type="text" id="sideDevUser" placeholder="User">
-            <input type="password" id="sideDevPass" placeholder="Pass">
-            <button onclick="submitNewDevice('sideDevUser', 'sideDevPass')">Add</button>
+            <input type="text" id="sideDevUser" placeholder="Username">
+            <input type="password" id="sideDevPass" placeholder="Password">
+            <button onclick="submitNewDevice('sideDevUser', 'sideDevPass')">Add Device</button>
             <button onclick="revertBoard()">Back</button>
         </div>`;
     refreshAllDeviceUI();
@@ -282,50 +227,38 @@ function revertBoard() {
     }
 }
 
-/* --- LOGS & CHARTS --- */
+/* --- DEVICE LOGS & CHARTS (FIXED) --- */
 
-function loadLogs(){
-    fetch("getDeviceLogs.php").then(res => res.json()).then(data => {
-        const container = document.getElementById("logsContainer");
-        if(!container) return;
-        container.innerHTML = data.map(log => `<div class="log-item">${log.action}<br><span class="log-time">${log.created_at}</span></div>`).join('');
-    });
-}
-
-/* --- DEVICE LOG CHARTS FOR MANAGER DASH --- */
-
-window.deviceLogsBarChart = null;
-window.deviceLogsPieChart = null;
-
-// Fetch logs and update UI + charts
+// Load ONLY device logs into the logs container
 function loadDeviceLogs() {
-    // Fetch raw logs for display
-    fetch("getLogs.php")
+    fetch("getDeviceLogs.php")
     .then(res => res.json())
-    .then(logs => {
+    .then(deviceLogs => {
         const container = document.getElementById("logsContainer");
         if (container) {
-            container.innerHTML = logs.map(log => `
-                <div class="log-item" style="padding:5px; border-bottom:1px solid #ddd;">
-                    ${log.action} <br>
-                    <span style="font-size:0.8em; color:gray;">${log.created_at}</span>
-                </div>
-            `).join('');
+            if (deviceLogs.length === 0) {
+                container.innerHTML = "<div class='log-item'>No device logs found.</div>";
+            } else {
+                container.innerHTML = deviceLogs.map(log => `
+                    <div class="log-item">
+                        <strong>${log.username}</strong>: ${log.action}<br>
+                        <span class="log-time">${log.created_at}</span>
+                    </div>
+                `).join('');
+            }
         }
-
-        // Now fetch stats for charts
+        
+        // Fetch stats for device log charts
         return fetch("getLogStats.php");
     })
     .then(res => res.json())
     .then(stats => {
-        // Destroy old charts if they exist
         if (window.deviceLogsBarChart instanceof Chart) window.deviceLogsBarChart.destroy();
         if (window.deviceLogsPieChart instanceof Chart) window.deviceLogsPieChart.destroy();
 
         const barCtx = document.getElementById('logsBarChart').getContext('2d');
         const pieCtx = document.getElementById('logsPieChart').getContext('2d');
 
-        // Bar chart
         window.deviceLogsBarChart = new Chart(barCtx, {
             type: 'bar',
             data: {
@@ -346,7 +279,6 @@ function loadDeviceLogs() {
             }
         });
 
-        // Pie chart
         window.deviceLogsPieChart = new Chart(pieCtx, {
             type: 'pie',
             data: {
@@ -354,9 +286,7 @@ function loadDeviceLogs() {
                 datasets: [{
                     label: 'Count',
                     data: stats.map(s => s.count),
-                    backgroundColor: [
-                        '#36A2EB','#FF6384','#FFCE56','#4BC0C0','#9966FF','#FF9F40','#C9CBCF'
-                    ]
+                    backgroundColor: ['#36A2EB','#FF6384','#FFCE56','#4BC0C0','#9966FF','#FF9F40','#C9CBCF']
                 }]
             },
             options: { responsive: true, maintainAspectRatio: false }
@@ -364,24 +294,21 @@ function loadDeviceLogs() {
     })
     .catch(err => console.error("Failed to load device logs/charts:", err));
 }
-
-// Auto-refresh every 5 seconds
-setInterval(loadDeviceLogs, 5000);
-
-function init() {
+// Initialize dashboard
+function initDashboard() {
     loadBuildings();
-    loadLogs();
     refreshAllDeviceUI();
-    loadDeviceLogs(); 
-    
+    loadDeviceLogs(); // This loads logs and charts
+
     document.getElementById("addDeviceBtn")?.addEventListener("click", () => {
         submitNewDevice('newDeviceUsername', 'newDevicePassword');
     });
-
     document.getElementById("logoutBtn")?.addEventListener("click", () => {
         window.location.href = "logout.php";
     });
+    
+    // Auto-refresh device logs every 5 seconds
+    setInterval(loadDeviceLogs, 5000);
 }
 
-window.onload = init;
-setInterval(loadLogs, 5000);
+window.onload = initDashboard;

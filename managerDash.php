@@ -1,6 +1,8 @@
 <?php
 session_start();
+include "connect.php";  // Added – needed for role check
 
+// Handle login if posted directly (keep your existing logic)
 if(isset($_POST['login'])) {
     $username = $_POST['username'];
     $password = $_POST['password'];
@@ -13,7 +15,7 @@ if(isset($_POST['login'])) {
     if($res->num_rows > 0) {
         $row = $res->fetch_assoc();
         if(password_verify($password, $row['password'])) {
-            $_SESSION['user_id'] = $row['id']; // ✅ must set user_id
+            $_SESSION['user_id'] = $row['id'];
             echo json_encode(["status"=>"success"]);
             exit;
         }
@@ -22,14 +24,32 @@ if(isset($_POST['login'])) {
     exit;
 }
 
+// --- SESSION AND ROLE CHECK (KEEP THIS) ---
 if(!isset($_SESSION['user_id'])) {
     header("Location: index.php");
     exit;
 }
 
-// Security: Redirect to login if no session exists
-// Note: In a real app, you'd check if $_SESSION['user_id'] is set.
-// For now, this is the shell for your dashboard.
+// Verify role – only manager or admin can access this page
+try {
+    $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$user || !in_array($user['role'], ['manager', 'admin'])) {
+        session_destroy();
+        header("Location: index.php");
+        exit;
+    }
+    // Store role in session for quick checks
+    $_SESSION['role'] = $user['role'];
+} catch (PDOException $e) {
+    // If DB error, deny access
+    session_destroy();
+    header("Location: index.php");
+    exit;
+}
+// --- END ROLE CHECK ---
 ?>
 <!DOCTYPE html>
 <html lang="en">

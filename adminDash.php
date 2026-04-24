@@ -2,6 +2,16 @@
 session_start();
 include "connect.php";
 
+// After session check
+$stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$user = $stmt->fetch();
+if (!$user || $user['role'] !== 'admin') {
+    session_destroy();
+    header("Location: index.php");
+    exit;
+}
+
 // Redirect if not logged in
 if(!isset($_SESSION['user_id'])){
     header("Location: index.php");

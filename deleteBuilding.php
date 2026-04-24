@@ -1,46 +1,57 @@
 <?php
 session_start();
 header('Content-Type: application/json');
-
-// Turn off display_errors so they don't break the JSON response
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
 try {
-    include __DIR__ . "/connect.php"; // This brings in $pdo
+    include __DIR__ . "/connect.php";
 
-    // 1. Auth Check
-    if(!isset($_SESSION['user_id'])){
-        echo json_encode(["status"=>"error","msg"=>"Unauthorized"]);
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(["status" => "error", "msg" => "Unauthorized"]);
         exit;
     }
 
-    // 2. Input Check
     $data = json_decode(file_get_contents("php://input"), true);
-    if(!$data || !isset($data['building_id'])){
-        echo json_encode(["status"=>"error","msg"=>"Missing building_id"]);
+    if (!$data || !isset($data['device_id'])) {
+        echo json_encode(["status" => "error", "msg" => "Missing device ID"]);
         exit;
     }
 
-    $building_id = intval($data['building_id']);
+    $device_id = intval($data['device_id']);
     $current_user = $_SESSION['user_id'];
 
-    // 3. Delete building using PDO (CASCADE removes floors, rooms, etc.)
-    $stmt = $pdo->prepare("DELETE FROM buildings WHERE id=?");
-    $stmt->execute([$building_id]);
+    // Role check
+    $check = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+    $check->execute([$current_user]);
+    $user = $check->fetch();
+    if (!$user || !in_array($user['role'], ['manager', 'admin'])) {
+        echo json_encode(["status" => "error", "msg" => "Forbidden"]);
+        exit;
+    }
 
-    // 4. Log the deletion using PDO
-    $logStmt = $pdo->prepare("INSERT INTO activity_logs (user_id, action) VALUES (?, ?)");
-    $action = "Deleted building ID: $building_id";
-    $logStmt->execute([$current_user, $action]);
+    $stmt = $pdo->prepare("SELECT username FROM users WHERE id = ? AND role = 'device'");
+    $stmt->execute([$device_id]);
+    $device = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$device) {
+        echo json_encode(["status" => "error", "msg" => "Device not found"]);
+        exit;
+    }
 
-    echo json_encode(["status"=>"success"]);
+    $delStmt = $pdo->prepare("DELETE FROM users WHERE id = ? AND role = 'device'");
+    $delStmt->execute([$device_id]);
+
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    $page = $_SERVER['REQUEST_URI'] ?? '';
+    $log = $pdo->prepare("INSERT INTO activity_logs (user_id, action, ip_address, user_agent, page) VALUES (?, ?, ?, ?, ?)");
+    $log->execute([$current_user, "Deleted device: " . $device['username'], $ip, $user_agent, $page]);
+
+    echo json_encode(["status" => "success"]);
 
 } catch (PDOException $e) {
-    // Catch database errors cleanly
-    echo json_encode(["status"=>"error", "msg"=>"Database Error: " . $e->getMessage()]);
+    echo json_encode(["status" => "error", "msg" => "Database error"]);
 } catch (Exception $e) {
-    // Catch server errors cleanly
-    echo json_encode(["status"=>"error", "msg"=>"Server Error: " . $e->getMessage()]);
+    echo json_encode(["status" => "error", "msg" => "Server error"]);
 }
 ?>

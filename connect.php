@@ -1,5 +1,4 @@
 <?php
-
 $host = "localhost";
 $db   = "u442411629_roomfill";
 $user = "u442411629_dev_roomfill";
