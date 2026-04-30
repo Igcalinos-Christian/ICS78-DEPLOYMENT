@@ -66,6 +66,7 @@ try {
     <span>Campus Building Dashboard</span>
     <div class="header-right">
     <button id="deleteBuildingBtn" style="background-color:red; color:white;" onclick="deleteSelectedBuilding()" disabled>Delete Building</button>
+    <button id="assignDeviceBtn" onclick="toggleAssignDeviceForm()">Assign Device</button>
     <button class="btn-add" onclick="showDeviceManager()">Manage Devices</button>
     <button id="showFormBtn" onclick="toggleBuildingForm()">Add Building</button>
     <button class="btn-logout" onclick="location.href='logout.php'">Logout</button>
