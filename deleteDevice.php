@@ -21,7 +21,7 @@ try {
     $device_id = intval($data['device_id']);
     $current_user = $_SESSION['user_id'];
 
-    // Role check – only manager/admin can delete devices
+    // Role check
     $check = $pdo->prepare("SELECT role FROM users WHERE id = ?");
     $check->execute([$current_user]);
     $user = $check->fetch();
@@ -30,23 +30,22 @@ try {
         exit;
     }
 
-    // Get device username for logging
     $stmt = $pdo->prepare("SELECT username FROM users WHERE id = ? AND role = 'device'");
     $stmt->execute([$device_id]);
     $device = $stmt->fetch(PDO::FETCH_ASSOC);
-
     if (!$device) {
         echo json_encode(["status" => "error", "msg" => "Device not found"]);
         exit;
     }
 
-    // Delete device
     $delStmt = $pdo->prepare("DELETE FROM users WHERE id = ? AND role = 'device'");
     $delStmt->execute([$device_id]);
 
-    // Log action
-    $logStmt = $pdo->prepare("INSERT INTO activity_logs (user_id, action) VALUES (?, ?)");
-    $logStmt->execute([$current_user, "Deleted device: " . $device['username']]);
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    $page = $_SERVER['REQUEST_URI'] ?? '';
+    $log = $pdo->prepare("INSERT INTO activity_logs (user_id, action, ip_address, user_agent, page) VALUES (?, ?, ?, ?, ?)");
+    $log->execute([$current_user, "Deleted device: " . $device['username'], $ip, $user_agent, $page]);
 
     echo json_encode(["status" => "success"]);
 

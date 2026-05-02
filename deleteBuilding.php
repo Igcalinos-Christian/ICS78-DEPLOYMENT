@@ -13,12 +13,12 @@ try {
     }
 
     $data = json_decode(file_get_contents("php://input"), true);
-    if (!$data || !isset($data['device_id'])) {
-        echo json_encode(["status" => "error", "msg" => "Missing device ID"]);
+    if (!$data || !isset($data['building_id'])) {
+        echo json_encode(["status" => "error", "msg" => "Missing building ID"]);
         exit;
     }
 
-    $device_id = intval($data['device_id']);
+    $building_id = intval($data['building_id']);
     $current_user = $_SESSION['user_id'];
 
     // Role check
@@ -30,22 +30,14 @@ try {
         exit;
     }
 
-    $stmt = $pdo->prepare("SELECT username FROM users WHERE id = ? AND role = 'device'");
-    $stmt->execute([$device_id]);
-    $device = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$device) {
-        echo json_encode(["status" => "error", "msg" => "Device not found"]);
-        exit;
-    }
-
-    $delStmt = $pdo->prepare("DELETE FROM users WHERE id = ? AND role = 'device'");
-    $delStmt->execute([$device_id]);
+    $stmt = $pdo->prepare("DELETE FROM buildings WHERE id = ?");
+    $stmt->execute([$building_id]);
 
     $ip = $_SERVER['REMOTE_ADDR'] ?? '';
     $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
     $page = $_SERVER['REQUEST_URI'] ?? '';
     $log = $pdo->prepare("INSERT INTO activity_logs (user_id, action, ip_address, user_agent, page) VALUES (?, ?, ?, ?, ?)");
-    $log->execute([$current_user, "Deleted device: " . $device['username'], $ip, $user_agent, $page]);
+    $log->execute([$current_user, "Deleted building ID: $building_id", $ip, $user_agent, $page]);
 
     echo json_encode(["status" => "success"]);
 
