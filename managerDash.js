@@ -16,6 +16,7 @@ L.polygon([
 let buildings = [];
 let originalBoardHTML = "";
 let selectedBuildingId = null;
+let buildingInfoRefreshInterval = null;  // for auto‑refresh
 
 // Chart instances
 window.deviceLogsBarChart = null;
@@ -97,6 +98,10 @@ function loadBuildings() {
                 window.buildingMarkers.push(marker);
                 marker.on('click', () => showBuildingInfo(building));
             });
+            // If a building was selected, refresh its info
+            if (selectedBuildingId) {
+                refreshSelectedBuilding();
+            }
         })
         .catch(err => console.error("Fetch error:", err));
 }
@@ -123,6 +128,10 @@ function showBuildingInfo(building){
     });
     const headerBtn = document.getElementById("deleteBuildingBtn");
     if(headerBtn) headerBtn.disabled = false;
+
+    // Start auto‑refresh for this building (every 3 seconds)
+    if (buildingInfoRefreshInterval) clearInterval(buildingInfoRefreshInterval);
+    buildingInfoRefreshInterval = setInterval(refreshSelectedBuilding, 3000);
 }
 
 function deleteSelectedBuilding(){
@@ -143,6 +152,10 @@ function deleteSelectedBuilding(){
             const headerBtn = document.getElementById("deleteBuildingBtn");
             if(headerBtn) headerBtn.disabled = true;
             selectedBuildingId = null;
+            if (buildingInfoRefreshInterval) {
+                clearInterval(buildingInfoRefreshInterval);
+                buildingInfoRefreshInterval = null;
+            }
         } else {
             alert("Error: " + data.msg);
         }
@@ -227,23 +240,33 @@ function revertBoard() {
     }
 }
 
-/* ========== ASSIGN DEVICE FEATURE (UPDATED) ========== */
+/* ========== ASSIGN DEVICE FEATURE (PERSISTENT ASSIGNMENT) ========== */
+
+let assignedRoomId = null;
+let assignedDeviceId = null;
 
 let assignSerialPort = null;
 let assignSerialReader = null;
 let assignKeepReading = false;
-
-// NEW: store the assigned room and device so serial data knows where to go
-let assignedRoomId = null;
-let assignedDeviceId = null;
 
 function toggleAssignDeviceForm() {
     const sidebar = document.querySelector('.sidebar');
     let formDiv = document.getElementById('assignDeviceForm');
     
     if (formDiv) {
-        // If already exists, toggle visibility
         formDiv.classList.toggle('hidden');
+        // If we're showing the form again
+        if (!formDiv.classList.contains('hidden')) {
+            loadBuildingsDropdown();
+            loadDevicesDropdown();
+            // If there's an active assignment, restore the UI
+            if (assignedRoomId && assignedDeviceId) {
+                restoreAssignmentSelections();
+            } else {
+                // Ensure dropdowns are enabled if no assignment
+                enableAssignmentFields();
+            }
+        }
         return;
     }
     
@@ -280,10 +303,11 @@ function toggleAssignDeviceForm() {
         </div>
         
         <button id="assignBtn" style="width:100%;" disabled>Assign Device</button>
-        <button id="cancelAssignBtn" style="width:100%; margin-top:5px; background:#aaa;">Cancel</button>
+        <button id="unassignBtn" style="width:100%; margin-top:5px; background:#f0ad4e; display:none;">Unassign Device</button>
+        <button id="cancelAssignBtn" style="width:100%; margin-top:5px; background:#aaa;">Close</button>
     `;
     
-    // Insert after the board
+    // Insert after the board (Building Information)
     const board = document.querySelector('.board');
     board.parentNode.insertBefore(formDiv, board.nextSibling);
     
@@ -305,21 +329,82 @@ function toggleAssignDeviceForm() {
     
     document.getElementById('assignRoom').addEventListener('change', checkAssignButton);
     document.getElementById('assignDevice').addEventListener('change', checkAssignButton);
-    
     document.getElementById('connectSerialBtn').addEventListener('click', connectSerial);
-    
     document.getElementById('assignBtn').addEventListener('click', assignDeviceToRoom);
-    
-    // Cancel button
+    document.getElementById('unassignBtn').addEventListener('click', unassignDevice);
     document.getElementById('cancelAssignBtn').addEventListener('click', function() {
-        // Disconnect serial if still connected
-        if (assignSerialPort) {
-            disconnectSerial();
-        }
-        toggleAssignDeviceForm(); // hide form
-        assignedRoomId = null;
-        assignedDeviceId = null;
+        // Just close the form – DO NOT clear assignment
+        toggleAssignDeviceForm();
     });
+    
+    // If an assignment is already active, restore the UI
+    if (assignedRoomId && assignedDeviceId) {
+        restoreAssignmentSelections();
+    }
+}
+
+// Helper: Enable all assignment fields (dropdowns, Assign button)
+function enableAssignmentFields() {
+    const building = document.getElementById('assignBuilding');
+    const room = document.getElementById('assignRoom');
+    const device = document.getElementById('assignDevice');
+    if (building) building.disabled = false;
+    if (room) {
+        room.disabled = true; // must reselect building first
+        room.innerHTML = '<option value="">-- First select a building --</option>';
+    }
+    if (device) device.disabled = false;
+    document.getElementById('assignBtn').disabled = true;
+    document.getElementById('unassignBtn').style.display = 'none';
+}
+
+// Restore selections when an assignment is active
+function restoreAssignmentSelections() {
+    // We need to figure out which building contains assignedRoomId.
+    // Fetch room details to get building_id.
+    fetch(`getRoomDetails.php?room_id=${assignedRoomId}`)
+        .then(res => res.json())
+        .then(room => {
+            if (!room || !room.building_id) {
+                console.warn('Cannot restore assignment: room not found');
+                return;
+            }
+            const buildingSelect = document.getElementById('assignBuilding');
+            const roomSelect = document.getElementById('assignRoom');
+            const deviceSelect = document.getElementById('assignDevice');
+            
+            if (buildingSelect) {
+                buildingSelect.value = room.building_id;
+                // Trigger change to load rooms
+                buildingSelect.dispatchEvent(new Event('change'));
+                // After rooms load, set the room and lock everything
+                setTimeout(() => {
+                    if (roomSelect) {
+                        roomSelect.value = assignedRoomId;
+                        roomSelect.disabled = true; // lock
+                    }
+                }, 500);
+                buildingSelect.disabled = true;
+            }
+            if (deviceSelect) {
+                deviceSelect.value = assignedDeviceId;
+                deviceSelect.disabled = true;
+            }
+            document.getElementById('assignBtn').disabled = true;
+            document.getElementById('unassignBtn').style.display = 'block';
+        })
+        .catch(err => console.error('Failed to restore assignment:', err));
+}
+
+function unassignDevice() {
+    if (!confirm('Remove the device assignment? Serial data will no longer update this room.')) return;
+    assignedRoomId = null;
+    assignedDeviceId = null;
+    enableAssignmentFields();
+    // Clear selections
+    document.getElementById('assignBuilding').value = '';
+    document.getElementById('assignDevice').value = '';
+    checkAssignButton();
 }
 
 function loadBuildingsDropdown() {
@@ -382,12 +467,12 @@ function checkAssignButton() {
     const room = document.getElementById('assignRoom').value;
     const device = document.getElementById('assignDevice').value;
     const serialConnected = assignSerialPort !== null;
-    
     const btn = document.getElementById('assignBtn');
     if (btn) btn.disabled = !(building && room && device && serialConnected);
 }
 
-// Web Serial integration
+// ── Serial functions ──
+
 async function connectSerial() {
     const statusSpan = document.getElementById('serialStatus');
     const outputDiv = document.getElementById('serialOutput');
@@ -418,7 +503,6 @@ async function connectSerial() {
 async function readSerialLoop() {
     const outputDiv = document.getElementById('serialOutput');
     const decoder = new TextDecoder();
-    // Buffer to accumulate partial lines
     let buffer = '';
     
     try {
@@ -434,10 +518,8 @@ async function readSerialLoop() {
                 outputDiv.textContent += text;
                 outputDiv.scrollTop = outputDiv.scrollHeight;
                 
-                // NEW: Process complete lines
                 buffer += text;
                 const lines = buffer.split('\n');
-                // Keep the last incomplete part in buffer
                 buffer = lines.pop();
                 for (const line of lines) {
                     processSerialLine(line.trim());
@@ -454,17 +536,14 @@ async function readSerialLoop() {
     }
 }
 
-// NEW: Takes a single line from serial, extracts an integer, and sends to DB
 function processSerialLine(line) {
     if (!line || !assignedRoomId || !assignedDeviceId) return;
     
-    // Try to extract the first integer from the line
     const match = line.match(/\d+/);
-    if (!match) return; // no number, ignore
+    if (!match) return;
     
     const occupantCount = parseInt(match[0], 10);
     
-    // Send to backend
     fetch('updateOccupants.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -476,10 +555,12 @@ function processSerialLine(line) {
     })
     .then(res => res.json())
     .then(data => {
-        if (data.status !== 'success') {
-            console.warn('Occupant update warning:', data.msg);
-        } else {
+        if (data.status === 'success') {
             console.log('Occupants updated:', occupantCount);
+            // Immediately refresh building info (if a building is selected)
+            refreshSelectedBuilding();
+        } else {
+            console.warn('Occupant update warning:', data.msg);
         }
     })
     .catch(err => console.error('Occupant update failed:', err));
@@ -488,12 +569,10 @@ function processSerialLine(line) {
 async function disconnectSerial() {
     assignKeepReading = false;
     if (assignSerialReader) {
-        await assignSerialReader.cancel();
-        assignSerialReader.releaseLock();
-        assignSerialReader = null;
+        try { await assignSerialReader.cancel(); } catch (err) {}
     }
     if (assignSerialPort) {
-        await assignSerialPort.close();
+        try { await assignSerialPort.close(); } catch (err) {}
         assignSerialPort = null;
     }
     document.getElementById('serialStatus').textContent = 'Disconnected';
@@ -506,7 +585,6 @@ async function disconnectSerial() {
     checkAssignButton();
 }
 
-// Assign button action - now also stores the IDs for serial processing
 function assignDeviceToRoom() {
     const roomId = document.getElementById('assignRoom').value;
     const deviceId = document.getElementById('assignDevice').value;
@@ -519,25 +597,22 @@ function assignDeviceToRoom() {
     fetch('assignDevice.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            room_id: roomId,
-            device_id: deviceId
-        })
+        body: JSON.stringify({ room_id: roomId, device_id: deviceId })
     })
     .then(res => res.json())
     .then(data => {
         if (data.status === 'success') {
-            // Store the assignment for serial processing
             assignedRoomId = roomId;
             assignedDeviceId = deviceId;
-            
             alert('Device assigned! Serial data will now update room ' + roomId);
-            // Don't hide the form - user may still want to see serial output
-            // But we can disable the assignment fields
+            // Lock UI
             document.getElementById('assignBuilding').disabled = true;
             document.getElementById('assignRoom').disabled = true;
             document.getElementById('assignDevice').disabled = true;
             document.getElementById('assignBtn').disabled = true;
+            document.getElementById('unassignBtn').style.display = 'block';
+            // Refresh building info
+            refreshSelectedBuilding();
         } else {
             alert('Assignment failed: ' + data.msg);
         }
@@ -548,21 +623,34 @@ function assignDeviceToRoom() {
     });
 }
 
-// Clean up serial on page unload
+/* ── Building info auto‑refresh ── */
+function refreshSelectedBuilding() {
+    if (!selectedBuildingId) return;
+    fetch('getBuildings.php')
+        .then(res => res.json())
+        .then(buildings => {
+            if (!Array.isArray(buildings)) return;
+            const building = buildings.find(b => b.id == selectedBuildingId);
+            if (building) {
+                showBuildingInfo(building);
+            }
+        })
+        .catch(err => console.error('Refresh building info failed:', err));
+}
+
+// Clean up on page unload
 window.addEventListener('beforeunload', () => {
+    assignKeepReading = false;
+    if (assignSerialReader) {
+        assignSerialReader.cancel().catch(() => {});
+    }
     if (assignSerialPort) {
-        assignKeepReading = false;
-        if (assignSerialReader) {
-            assignSerialReader.cancel();
-            assignSerialReader.releaseLock();
-        }
-        assignSerialPort.close();
+        assignSerialPort.close().catch(() => {});
     }
 });
 
 /* --- DEVICE LOGS & CHARTS (FIXED) --- */
 
-// Load ONLY device logs into the logs container
 function loadDeviceLogs() {
     fetch("getDeviceLogs.php")
     .then(res => res.json())
@@ -581,7 +669,6 @@ function loadDeviceLogs() {
             }
         }
         
-        // Fetch stats for device log charts
         return fetch("getLogStats.php");
     })
     .then(res => res.json())
@@ -628,7 +715,6 @@ function loadDeviceLogs() {
     .catch(err => console.error("Failed to load device logs/charts:", err));
 }
 
-// Initialize dashboard
 function initDashboard() {
     loadBuildings();
     refreshAllDeviceUI();
