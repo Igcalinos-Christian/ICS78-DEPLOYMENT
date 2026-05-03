@@ -1,30 +1,73 @@
 <?php
-$host = "localhost";
-$username = "u442411629_dev_roomfill";
-$password = "X05s7PY@X!KB";
-$database = "u442411629_roomfill";
+session_start();
+include __DIR__ . "/connect.php";
 
-$conn = new mysqli($host, $username, $password, $database);
-
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+// Optional: restrict to logged‑in users
+if (!isset($_SESSION['user_id'])) {
+    header("Location: index.php");
+    exit;
 }
 
-header('Content-Type: text/csv');
-header('Content-Disposition: attachment;filename="users.csv"');
+$sql = "SELECT 
+            a.id                   AS activity_id,
+            a.user_id,
+            u.username,
+            a.action               AS activity_action,
+            a.ip_address,
+            a.user_agent,
+            a.page,
+            a.created_at           AS activity_created_at,
+            d.id                   AS device_log_id,
+            d.device_id            AS device_log_device_id,
+            d.action               AS device_log_action,
+            d.created_at           AS device_log_created_at
+        FROM activity_logs a
+        JOIN users u ON a.user_id = u.id
+        LEFT JOIN device_logs d ON a.user_id = d.device_id
+        ORDER BY a.created_at DESC";
 
-$output = fopen("php://output", "w");
+$stmt = $pdo->prepare($sql);
+$stmt->execute();
+$logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-fputcsv($output, array('id', 'user_id', 'action',  'created_at'));
+// CSV headers
+header('Content-Type: text/csv; charset=utf-8');
+header('Content-Disposition: attachment; filename="logs_export.csv"');
 
-$query = "SELECT id, user_id, action, created_at FROM activity_logs";
-$result = $conn->query($query);
+$output = fopen('php://output', 'w');
 
-while ($row = $result->fetch_assoc()) {
-    fputcsv($output, $row);
+// Column names (matching the SELECT aliases)
+fputcsv($output, [
+    'Activity ID',
+    'User ID',
+    'Username',
+    'Activity Action',
+    'IP Address',
+    'User Agent',
+    'Page',
+    'Activity Created At',
+    'Device Log ID',
+    'Device Log Device ID',
+    'Device Log Action',
+    'Device Log Created At'
+]);
+
+foreach ($logs as $row) {
+    fputcsv($output, [
+        $row['activity_id'],
+        $row['user_id'],
+        $row['username'],
+        $row['activity_action'],
+        $row['ip_address'] ?? '',
+        $row['user_agent'] ?? '',
+        $row['page'] ?? '',
+        $row['activity_created_at'],
+        $row['device_log_id']         ?? '',
+        $row['device_log_device_id']  ?? '',
+        $row['device_log_action']     ?? '',
+        $row['device_log_created_at'] ?? ''
+    ]);
 }
 
-$conn->close();
 fclose($output);
 exit;
-?>
